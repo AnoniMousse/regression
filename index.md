@@ -1,0 +1,4 @@
+
+####Exploration of the effects of type of transmission on gas mileage
+####Summary
+The purpose of this study is to use the mtcars dataset to address these issues for Motor Trend Magazine management: 1) "Is an automatic or manual transmission better for MPG", and 2) "Quantify the MPG difference between automatic and manual transmissions." Conclusion: 
