@@ -5,6 +5,214 @@ output:
     self_contained: no
 ---
 
-####Exploration of the effects of type of transmission on gas mileage
-####Summary
-The purpose of this study is to use the mtcars dataset to address these issues for Motor Trend Magazine management: 1) "Is an automatic or manual transmission better for MPG", and 2) "Quantify the MPG difference between automatic and manual transmissions." Conclusion: 
+#### More detailed plus supplementary analyses with syntax
+
+This supplement is intended to illustrate my thinking for the Regression Models project and fills in some of the details of the analyses and syntax that could not be fit into the report. It is not intended to be graded with the report.
+
+```{r}
+data(mtcars)
+attach(mtcars)
+mtcars$vs <- as.factor(mtcars$vs)
+mtcars$amf <- as.factor(mtcars$am)
+
+## Initial t-test
+t.test(mpg ~ amf, data = mtcars)
+
+## Standardize cyl and disp and create engSize
+stdCyl <- (cyl - mean(cyl))/sd(cyl)
+stdDisp <- (disp - mean(disp))/sd(disp)
+mtcars$engSize <- (stdCyl + stdDisp)/2
+
+## Remove cyl and disp from dataset
+mtcars$cyl <- NULL
+mtcars$disp <- NULL
+```
+
+```{r}
+##Fit horsepowwer
+hp.fit1 <- lm(hp ~ carb + engSize + vs, data = mtcars)
+summary(hp.fit1)
+
+## Final regression of hp on signifidcant variables 
+hp.fit2<- lm(hp ~ carb + engSize, data = mtcars)
+summary(hp.fit2)
+## loasd library(QuantPsyc) for standardized regression coefficients
+library(QuantPsyc)
+lm.beta(hp.fit2)
+
+## create qmSpeed
+mtcars$qmSpeed <- (3600/mtcars$qsec * 0.25)
+
+## Remove qsec
+mtcars$qsec <- NULL
+
+## Use final mtcars for pairs cor panel
+pairs(x = mtcars, panel = panel.smooth, main = 'Plot relationships among variables')
+
+
+## ok I double checked: amf1 = manual and vs1 = straight
+
+mtcars2 <- mtcars
+mtcars2$am <- NULL
+str(mtcars2)
+
+qmSpeed.fit <- lm(qmSpeed ~ ., data=mtcars2)
+slm2 <- step(qmSpeed.fit)
+summary(slm2)
+    
+qmSpeed.fit2 <- lm(qmSpeed ~ hp + wt + vs + gear + engSize , data=mtcars2)
+summary(qmSpeed.fit2)
+lm.beta(qmSpeed.fit2)
+
+qmSpeed.fit3 <- lm(qmSpeed ~ hp + log(wt) + vs + gear + engSize , data=mtcars2)
+summary(qmSpeed.fit3)
+lm.beta(qmSpeed.fit3)
+
+## Final regression of qmSpeed on vars using log(wt) for Figure 2
+qmSpeed.fit4 <- lm(qmSpeed ~ hp + log(wt) + vs + gear , data=mtcars2)
+summary(qmSpeed.fit4)
+lm.beta(qmSpeed.fit4)
+
+## first regress mpg on vars using wt for Figure 1
+mpg.fit1 <- lm(mpg ~ . , data=mtcars2)
+slm3 <- step(mpg.fit1)
+summary(slm3)
+
+## Add interaction term for better fit 
+mpg.fit2 <- lm(mpg ~ qmSpeed + amf + wt + amf:wt, data = mtcars2)
+summary(mpg.fit2)
+#however, the betas seem to be erroneou
+lm.beta(mpg.fit2)
+
+## Running the analysis with am as an interger gives the same b weights but much
+## more plausible beta weights
+mtcars$amxwt <- mtcars$am*mtcars$wt
+mpg.fit3 <- lm(mpg ~ qmSpeed + am + wt + amxwt, data = mtcars)
+summary(mpg.fit3)
+lm.beta(mpg.fit3)
+
+## Now do it with log(wt)
+mtcars3 <- mtcars2
+mtcars3$logWt<- log(mtcars3$wt)
+mtcars3$wt <- NULL
+
+# doing it this way with logWt instead of wt gives us insig coeff for am  
+# from the start
+mpg.fit4<- lm(mpg ~ . , data=mtcars3)
+slm4 <- step(mpg.fit4)
+summary(slm4)
+
+# Here I test the valid model above using log(wt) instead of wt
+mpg.fit5 <- lm(mpg ~ qmSpeed + amf + log(wt) + amf:log(wt), data = mtcars2)
+summary(mpg.fit5)
+
+# Remove interaction since it has least significance
+mpg.fit6 <- lm(mpg ~ qmSpeed + amf + log(wt), data = mtcars2)
+summary(mpg.fit6)
+
+# Finally remove amf since it is not sig
+mpg.fit7 <- lm(mpg ~ qmSpeed + log(wt), data = mtcars2)
+summary(mpg.fit7)
+lm.beta(mpg.fit7)
+
+
+```
+###Syntax for creating figures (figures 2 and 3 were created with PowerPoint)
+
+![My Figure](figure2.png)
+![My Figure](figure3.png)
+
+```{r, fig.width=9, message=FALSE}
+library(ggplot2)
+
+plot1 <- ggplot(mtcars, aes(x=wt, y=mpg)) + geom_point() + geom_smooth(method=lm) +
+         ylim(8,36) + labs(x="Weight", y = "Miles per Gallon", title= "a. Linear Regression Line")
+
+plot2 <- ggplot(mtcars, aes(x=wt, y=mpg)) + geom_point() + geom_smooth(method=loess) +
+         ylim(8,36) + labs(x="Weight", y = "Miles per Gallon", title= "b. Loess Regression Line")
+
+plot3 <- ggplot(mtcars, aes(x=wt, y=mpg)) + geom_point() + stat_smooth(method="lm",
+         formula=y~log(x)) + ylim(8,36) + labs(x="Weight", y = "Miles per Gallon", title= "c. Log Regression Line")
+
+library(gridExtra)
+grid.arrange(plot1, plot2, plot3, nrow=1, sub=textGrob("Figure 4. Miles per gallon by weight with regression lines (with 95% CI)", gp=gpar(font=2)))
+```
+
+####Some suggestions for the graph syntax came from here: http://rforpublichealth.blogspot.com/2013/11/ggplot2-cheatsheet-for-scatterplots.html
+```{r fig.width=9}
+plot4 <- ggplot(data=mtcars, aes(x=wt, y=mpg)) +
+                geom_point(size=2, aes(color=factor(am))) +
+                geom_smooth(aes(color=factor(am)), method="lm", se=T) +
+                scale_color_manual(name ="Transmission", labels=c("Automatic", "Manual"),
+                values=c("red","blue")) + theme_bw() +  
+                theme(axis.title.x = element_text(face="bold", color="black", size=12),
+                axis.title.y = element_text(face="bold", color="black", size=12),
+                plot.title = element_text(face="bold", color = "black", size=12),
+                legend.position=c(1,1),
+                legend.justification=c(1,1)) + ylim(8,36) +
+                labs(x="Weight", y = "Miles per Gallon")
+                
+mtcars$lmWt <- log(mtcars$wt)
+plot5 <- ggplot(data=mtcars, aes(x=lmWt, y=mpg, color=am)) + geom_point(size=2, aes(color=factor(am,))) +
+                geom_smooth(aes(color=factor(am)), method="lm", se=T) +
+                scale_color_manual(name ="Transmission", 
+                labels=c("Automatic", "Manual"), values=c("red","blue")) +
+                theme_bw() + theme(axis.title.x = element_text(face="bold", color="black", size=12),
+                axis.title.y = element_text(face="bold", color="black", size=12),
+                plot.title = element_text(face="bold", color = "black", size=12),
+                legend.position=c(1,1),
+                legend.justification=c(1,1)) + ylim(8,36) +
+                labs(x="Log of Weight", y = "Miles per Gallon")
+                
+library(gridExtra)
+grid.arrange(plot4, plot5, nrow=1, sub=textGrob("Figure 5. Miles per gallon by weight with separate regression lines for type of transmission (with 95% CI)", gp=gpar(font=2)))
+```
+
+
+```{r}
+par(mfrow=c(2,2))    
+plot(mpg.fit7)
+```
+
+```{r ECHO=FALSE}
+##
+```
+          Figure 6. Diagnostics of final model lm(mpg ~ qmSpeed + log(Wt) + am)
+
+```{r }
+## Finally, we can use ANOVA to test if the fit is better with or 
+## without the interaction term.
+mod1 <- aov(mpg ~ amf*wt + qmSpeed, data=mtcars)
+summary(mod1)
+
+## Now check the model without the interaction term
+mod2 <- aov(mpg ~ amf + wt + qmSpeed, data=mtcars)
+summary(mod2)
+
+## Finally, we test the difference between the two models
+anova(mod1,mod2)
+# This last analysis shows that removing the interaction term 
+# signficantly degrades the fit of the model, i.e, we should
+# retain the interaction term
+
+##
+## Now we do the same but using log(wt) instead of wt
+mod3 <- aov(mpg ~ amf*log(wt) + qmSpeed, data=mtcars)
+summary(mod3)
+## Here the interaction is not significant
+
+## Now check the model without the interaction term
+mod4 <- aov(mpg ~ amf + log(wt) + qmSpeed, data=mtcars)
+summary(mod4)
+
+## Finally, we test the difference between the two models
+anova(mod3,mod4)
+## Here we see that removal of the interaction of amf with log(wt)
+## does not make a difference since it was not signficant to begin 
+## with. This supports the notion that taking the log of wt 
+## "straightens out" the curvilinear relationship of weight with mpg
+## and the signficant effect of am was due to its accounting for some
+## of the variance due to that curvilinear relationship.
+
+detach(mtcars)
+```          
